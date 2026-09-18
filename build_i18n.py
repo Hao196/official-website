@@ -517,6 +517,19 @@ def build(lang):
                 for old, new in sorted(pairs, key=lambda p: -len(p[0])):
                     s = s.replace(old, new)
 
+        # ---- accessible labels on carousel prev/next arrows ----
+        def _set_arrow_label(tag, label):
+            t = re.sub(r'\s+aria-label="[^"]*"', '', tag.group(0))
+            if re.search(r'aria-label', t):
+                return t
+            return t[:-1] + ' aria-label="%s">' % label
+
+        _prev, _next = ("Previous", "Next") if lang == "en" else ("前へ", "次へ")
+        s = re.sub(r"<a\s+class=['\"]sprev['\"][^>]*>",
+                   lambda m: _set_arrow_label(m, _prev), s)
+        s = re.sub(r"<a\s+class=['\"]snext['\"][^>]*>",
+                   lambda m: _set_arrow_label(m, _next), s)
+
         # ---- titles / news headings / logo mark / meta ----
         # (BEFORE COMMON so full titles are matched before partial phrases)
         for zh, tr in TITLES.get(lang, {}).items():
