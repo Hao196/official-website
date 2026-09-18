@@ -4,7 +4,7 @@ i18n builder: generate en/ and ja/ mirrors for all 122 pages.
 Shared chrome (nav/footer/buttons/breadcrumb/switch/lang/title) is
 translated via dictionaries; page bodies via body_en/body_ja maps.
 """
-import glob, os, re, sys, json, io
+import glob, os, re, sys, json, io, html as _html
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = "F:/做一个官网网页/"
@@ -295,7 +295,10 @@ def tr_title(lang, title):
     return PAGE_TITLES[lang].get(title, title if lang == "zh" else title)
 
 def rewrite_paths(html, lang):
-    """Prefix ../../ or ../ to assets/css/js/template refs for subdir pages."""
+    """Prefix ../ to assets/css/js/template refs for subdir pages.
+    Also normalizes single-quoted src/href attributes to double quotes."""
+    html = re.sub(r"""(src|href)\s*=\s*'([^']*)'""", r'\1="\2"', html, flags=re.I)
+
     def fix(m):
         p = m.group(2)
         if p.startswith(("http", "#", "mailto", "tel", "data:", "javascript:")):
@@ -305,8 +308,12 @@ def rewrite_paths(html, lang):
         if p.startswith("assets/") or p.startswith("template/"):
             return m.group(0).replace(p, "../" + p)
         return m.group(0)
-    # internal .html links stay same-name (en/index.html -> index.html ok)
     html = re.sub(r'(src|href)="(css/[^"]+|js/[^"]+|template/[^"]+|assets/[^"]+)"', fix, html)
+
+    def fixurl(m):
+        q, pre, rest = m.group(1), m.group(2), m.group(3)
+        return "url(%s../%s%s%s)" % (q, pre, rest, q)
+    html = re.sub(r"url\(\s*(['\"]?)(assets/|css/|js/|template/)([^)'\"]*)\1\s*\)", fixurl, html)
     return html
 
 def _replace_container(s, cls, new_inner):
@@ -338,23 +345,59 @@ def _replace_container(s, cls, new_inner):
     return s, False
 
 
+LANG_NAMES = {"zh": "中文", "en": "English", "ja": "日本語"}
+
+_GLOBE = (
+    '<svg class="lang-globe" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" '
+    'fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/>'
+    '<path d="M3 12h18M12 3c2.5 2.5 3.8 5.7 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.7-3.8-9S9.5 5.5 12 3z"/></svg>'
+)
+
 def lang_switch_html(cur_lang, self_page):
     if cur_lang == "zh":
-        zh_href, en_href, ja_href = self_page, "en/" + self_page, "ja/" + self_page
+        hrefs = {"zh": self_page, "en": "en/" + self_page, "ja": "ja/" + self_page}
     elif cur_lang == "en":
-        zh_href, en_href, ja_href = "../" + self_page, self_page, "../ja/" + self_page
+        hrefs = {"zh": "../" + self_page, "en": self_page, "ja": "../ja/" + self_page}
     else:
-        zh_href, en_href, ja_href = "../" + self_page, "../en/" + self_page, self_page
+        hrefs = {"zh": "../" + self_page, "en": "../en/" + self_page, "ja": self_page}
+    items = "".join(
+        '<a href="%s" hreflang="%s"%s>%s</a>' % (
+            hrefs[k], "zh-CN" if k == "zh" else k,
+            ' class="on" aria-current="true"' if k == cur_lang else "",
+            LANG_NAMES[k])
+        for k in ("zh", "en", "ja"))
     return (
-        '<span class="lang-switch">'
-        '<a href="%s"%s>中</a>'
-        '<a href="%s"%s>EN</a>'
-        '<a href="%s"%s>日本語</a>'
-        "</span>"
-        % (zh_href, ' class="on"' if cur_lang == "zh" else "",
-           en_href, ' class="on"' if cur_lang == "en" else "",
-           ja_href, ' class="on"' if cur_lang == "ja" else "")
+        '<div class="lang-switch">'
+        '<button type="button" class="lang-btn" aria-haspopup="true" aria-expanded="false" aria-label="Language">'
+        + _GLOBE +
+        '<span class="lang-cur">%s</span><span class="lang-caret" aria-hidden="true"></span>'
+        '</button>'
+        '<div class="lang-menu">%s</div>'
+        '</div>' % (LANG_NAMES[cur_lang], items)
     )
+
+def _remove_balanced(html, start, pos, tag):
+    depth = 1
+    pat = re.compile(r"</?%s\b[^>]*>" % tag, re.I)
+    while True:
+        mm = pat.search(html, pos)
+        if not mm:
+            return html
+        if mm.group(0).startswith("</"):
+            depth -= 1
+            if depth == 0:
+                return html[:start] + html[mm.end():]
+        else:
+            depth += 1
+        pos = mm.end()
+
+def strip_lang_switch(html):
+    """Remove a previously-injected language switcher (span or div form)."""
+    m = re.search(r"<(span|div)\s+class=\"lang-switch\"", html)
+    if not m:
+        return html
+    return _remove_balanced(html, m.start(), m.end(), m.group(1))
+
 
 
 def build(lang):
@@ -365,7 +408,7 @@ def build(lang):
     for f in files:
         name = os.path.basename(f)
         s = io.open(f, encoding="utf-8", errors="ignore").read()
-        s = re.sub(r'<span class="lang-switch">.*?</span>', "", s, flags=re.S)
+        s = strip_lang_switch(s)
 
         # ---- lang attr ----
         s = s.replace('lang="zh-CN"', 'lang="%s"' % ("en" if lang == "en" else "ja"))
@@ -513,12 +556,33 @@ def build(lang):
         # ---- rewrite resource paths (after body injection so injected
         #      assets/... refs also get the ../ prefix) ----
         s = rewrite_paths(s, lang)
+        s = upgrade_links(s)
+        s = fill_alts(s)
 
         # ---- write out ----
         out = OUT[lang] + name
         io.open(out, "w", encoding="utf-8").write(s)
         done += 1
     print("[%s] wrote %d pages into %s" % (lang, done, OUT[lang]))
+
+def fill_alts(html):
+    """Give content images an alt derived from the page h1 (per-language)."""
+    m = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+    if not m:
+        return html
+    alt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", m.group(1))).strip()
+    if not alt:
+        return html
+    if len(alt) > 120:
+        alt = alt[:120].rstrip() + "..."
+    alt = _html.escape(_html.unescape(alt), quote=True)
+    return re.sub(r'<img\b([^>]*?)\s*alt\s*=\s*(?:""|\'\')',
+                  lambda mm: '<img%s alt="%s"' % (mm.group(1), alt), html)
+
+def upgrade_links(html):
+    """Upgrade known http-only external links to https (both hosts support it)."""
+    return (html.replace("http://www.wirechina.net/", "https://www.wirechina.net/")
+                .replace("http://www.wire-india.com/", "https://www.wire-india.com/"))
 
 def _apply_body(html, mapping):
     for old, new in mapping:
@@ -531,7 +595,9 @@ def build_zh():
     for f in sorted(glob.glob(ROOT + "*.html")):
         name = os.path.basename(f)
         s = io.open(f, encoding="utf-8", errors="ignore").read()
-        s = re.sub(r'<span class="lang-switch">.*?</span>', "", s, flags=re.S)
+        s = strip_lang_switch(s)
+        s = upgrade_links(s)
+        s = fill_alts(s)
         if '<div class="header-cta">' in s:
             s = s.replace('<div class="header-cta">',
                           '<div class="header-cta">' + lang_switch_html("zh", name), 1)

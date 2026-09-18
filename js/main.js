@@ -17,6 +17,28 @@
     });
   }
 
+  var langSwitch = document.querySelector(".lang-switch");
+  var langBtn = langSwitch && langSwitch.querySelector(".lang-btn");
+  if (langSwitch && langBtn) {
+    langBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var open = langSwitch.classList.toggle("open");
+      langBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    document.addEventListener("click", function (e) {
+      if (!langSwitch.contains(e.target)) {
+        langSwitch.classList.remove("open");
+        langBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        langSwitch.classList.remove("open");
+        langBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
   var yearEl = document.getElementById("year");
   if (yearEl) {
     yearEl.textContent = new Date().getFullYear();

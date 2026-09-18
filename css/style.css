@@ -1143,11 +1143,65 @@ header.site-header {
   color: var(--text);
 }
 
-.map-placeholder {
+.map-card {
   margin-top: 48px;
-  border-radius: 10px;
-  overflow: hidden;
+  padding: 32px 24px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 6px 20px rgba(11, 20, 31, 0.08);
+  text-align: center;
+}
+
+.map-card-pin {
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.map-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+
+.map-card-addr {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+.map-card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+
+.map-card-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-light);
+}
+
+.map-card-list strong {
+  font-weight: 600;
+  color: var(--text);
+  flex: none;
+}
+
+.map-card-list span {
+  text-align: right;
+  word-break: break-all;
 }
 
 .form-group {
@@ -1845,30 +1899,93 @@ html {
   font-variant-numeric: tabular-nums;
 }
 
-/* 语言切换器 */
+/* 语言切换器（点击下拉） */
 .lang-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-right: 4px;
+  position: relative;
+  display: inline-block;
+  margin-right: 6px;
   font-size: 13px;
 }
-.lang-switch a {
-  padding: 4px 9px;
+.lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid rgba(22, 50, 79, 0.18);
   border-radius: 999px;
+  background: transparent;
   color: var(--text-light);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.lang-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: rgba(22, 50, 79, 0.06);
+}
+.lang-globe { flex: none; }
+.lang-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transition: transform 0.2s;
+}
+.lang-switch.open .lang-caret { transform: rotate(180deg); }
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 132px;
+  padding: 6px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 31, 51, 0.18);
+  display: none;
+  z-index: 60;
+}
+.lang-switch.open .lang-menu { display: block; }
+.lang-menu a {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--text, #1c2b3a);
   font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
   transition: background 0.2s, color 0.2s;
 }
-.lang-switch a:hover {
+.lang-menu a:hover {
   color: var(--primary);
   background: rgba(22, 50, 79, 0.08);
 }
-.lang-switch a.on {
+.lang-menu a.on {
   color: #fff;
   background: var(--primary);
 }
 @media (max-width: 768px) {
-  .lang-switch { display: none; }
+  .lang-switch { margin-right: 2px; }
+  .lang-cur { display: none; }
+}
+
+/* Word-exported spec tables: keep them inside small viewports */
+table[class*="MsoTableGrid"] {
+  max-width: 100%;
+}
+
+table[class*="MsoTableGrid"] td,
+table[class*="MsoTableGrid"] th {
+  word-break: break-word;
+}
+
+/* mobile: disable horizontal reveal slide so it never causes a 1-frame overflow */
+@media (max-width: 900px) {
+  .reveal-left,
+  .reveal-right {
+    transform: none;
+  }
 }
